@@ -1,24 +1,44 @@
-// src/Box.js
 import React from 'react';
+import WeatherIcon from './WeatherIcon';
+import WeatherDetails from './WeatherDetails';
 
 function Box() {
+  const weatherCondition = 'sunny';
+  const weatherData = {
+    temperature: 15,
+    condition: weatherCondition.charAt(0).toUpperCase() + weatherCondition.slice(1),
+    location: 'Normal, IL',
+    humidity: 68,
+    windSpeed: 2,
+  };
+
   return (
-    <div className="w-1/2 h-1/2 bg-white shadow-lg rounded-lg flex flex-col shadow-xl">
-        
-      <div className="bg-orange-300 p-4 text-center">
-        <h1>Top</h1>
+    <div
+      className="w-2/5 h-2/5 rounded-lg flex flex-col overflow-hidden"
+      style={{
+        backgroundImage: 'linear-gradient(to bottom, #1a1a1a, #333333)',
+        boxShadow: '0 15px 40px rgba(0, 0, 0, 0.8)',
+      }}
+    >
+      <div className="p-4 text-center">
+        <h1></h1>
       </div>
-      
+
       <div className="flex flex-1">
-        <div className="w-1/2 h-full bg-yellow-300 flex items-center justify-center">
-          <h1>1</h1>
+        <div className="w-1/2 h-full flex items-center justify-center">
+          <WeatherIcon weatherCondition={weatherCondition} />
         </div>
 
-        <div className="w-1/2 h-full bg-green-300 flex items-center justify-center">
-          <h1>2</h1>
+        <div className="w-1/2 h-full flex items-center justify-center">
+          <WeatherDetails
+            temperature={weatherData.temperature}
+            condition={weatherData.condition}
+            location={weatherData.location}
+            humidity={weatherData.humidity}
+            windSpeed={weatherData.windSpeed}
+          />
         </div>
       </div>
-
     </div>
   );
 }
