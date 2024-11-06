@@ -1,7 +1,13 @@
-export default function App() {
+// src/App.js
+import React from 'react';
+import Box from './components/Box';
+
+function App() {
   return (
-    <h1 className="text-3xl font-bold underline">
-      Hello world!
-    </h1>
-  )
+    <div className="h-screen flex items-center justify-center bg-gradient-to-r from-blue-500 via-blue-300 to-blue-100">
+      <Box />
+    </div>
+  );
 }
+
+export default App;
