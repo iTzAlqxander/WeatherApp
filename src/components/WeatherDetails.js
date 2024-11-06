@@ -2,8 +2,9 @@ import React from 'react';
 
 import humidityIcon from '../assets/humidity.png';
 import windIcon from '../assets/wind.png';
+import pressureIcon from '../assets/pressure.png';
 
-function WeatherDetails({ temperature, condition, location, humidity, windSpeed }) {
+function WeatherDetails({ temperature, condition, location, humidity, windSpeed, airPressure }) {
   return (
     <div className="text-white flex flex-col items-center justify-center p-4 md:p-6 lg:p-8">
       <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold">{temperature}°C</h1>
@@ -17,6 +18,10 @@ function WeatherDetails({ temperature, condition, location, humidity, windSpeed 
         <div className="flex items-center space-x-2">
           <img src={windIcon} alt="Wind Icon" className="w-5 h-5 md:w-6 md:h-6" />
           <span className="text-sm md:text-md">{windSpeed} MPH</span>
+        </div>
+        <div className="flex items-center space-x-2">
+          <img src={pressureIcon} alt="Air Pressure Icon" className="w-5 h-5 md:w-6 md:h-6" />
+          <span className="text-sm md:text-md">{airPressure} hPa</span>
         </div>
       </div>
     </div>
