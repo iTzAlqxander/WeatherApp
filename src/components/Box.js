@@ -94,11 +94,12 @@ function Box() {
       }}
     >
       <div
-        className="absolute top-2 right-2 cursor-pointer text-white text-2xl"
-        onClick={handleToggle}
-      >
-        +
-      </div>
+  className="absolute top-1 right-1 cursor-pointer text-white text-2xl"
+  onClick={handleToggle}
+>
+  +
+</div>
+
 
       {!showAlternate ? (
         <div className="flex flex-1">
