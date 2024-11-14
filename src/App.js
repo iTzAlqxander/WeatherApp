@@ -1,5 +1,6 @@
 import React from 'react';
 import Box from './components/Box';
+import Clock from './components/Clock';
 import scenicBackground from './assets/bg.gif';
 
 function App() {
@@ -13,6 +14,7 @@ function App() {
         backgroundPosition: 'center',
       }}
     >
+      <Clock/>
       <Box />
     </div>
   );

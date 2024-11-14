@@ -17,11 +17,9 @@ function FourDayForecast({ forecast }) {
       }
     };
 
-    // Set initial days to show and add event listener for resize
     updateDaysToShow();
     window.addEventListener('resize', updateDaysToShow);
 
-    // Clean up the event listener on component unmount
     return () => {
       window.removeEventListener('resize', updateDaysToShow);
     };
@@ -31,7 +29,6 @@ function FourDayForecast({ forecast }) {
     <div className="flex gap-3 justify-center">
       {forecast.length > 0 ? (
         forecast.slice(0, daysToShow).map((day, index) => {
-          // Select image based on description content
           let weatherImage;
           const descriptionLowerCase = day.description.toLowerCase();
           if (descriptionLowerCase.includes('rain')) {
@@ -50,7 +47,7 @@ function FourDayForecast({ forecast }) {
               <p className="font-semibold text-sm">
                 {new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' })}
               </p>
-              {weatherImage && <img src={weatherImage} alt={day.description} className="w-10 h-10 mb-2" />}
+              {weatherImage && <img src={weatherImage} alt={day.description} className="w-10 h-10 mb-1" />}
               <p className="capitalize text-sm">{day.description}</p>
               <p className="mt-1 text-sm">High: {Math.round(day.high)}°F</p>
               <p className="text-sm">Low: {Math.round(day.low)}°F</p>
