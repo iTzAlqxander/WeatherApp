@@ -8,7 +8,7 @@ function Box() {
   const [forecast, setForecast] = useState([]);
   const [loading, setLoading] = useState(true);
   const [daysToShow, setDaysToShow] = useState(4);
-  const apiKey = process.env.REACT_APP_WEATHER_API_KEY;
+
   const latitude = 40.525639;
   const longitude = -89.012779;
 
@@ -33,32 +33,18 @@ function Box() {
     const fetchWeatherData = async () => {
       try {
         setLoading(true);
-        const response = await fetch(
-          `https://api.openweathermap.org/data/2.5/forecast?lat=${latitude}&lon=${longitude}&appid=${apiKey}&units=metric`
-        );
+        // Replace 'http://localhost:5000' with your backend server URL if different
+        const response = await fetch(`http://localhost:5000/api/weather?latitude=${latitude}&longitude=${longitude}`);
         const data = await response.json();
 
-        const groupedData = data.list.reduce((acc, item) => {
-          const date = new Date(item.dt * 1000).toLocaleDateString('en-US');
-          if (!acc[date]) {
-            acc[date] = { temps: [], weather: item.weather[0] };
-          }
-          acc[date].temps.push(item.main.temp);
-          return acc;
-        }, {});
-
-        const dailyData = Object.entries(groupedData).map(([date, { temps, weather }]) => {
-          const highCelsius = Math.max(...temps);
-          const lowCelsius = Math.min(...temps);
-
-          return {
-            date,
-            high: (highCelsius * 9 / 5) + 32,
-            low: (lowCelsius * 9 / 5) + 32,
-            description: weather.description,
-            weatherMain: weather.main,
-          };
-        });
+        // Process the fetched data as needed
+        const dailyData = data.forecast.forecastday.map(day => ({
+          date: day.date,
+          high: day.day.maxtemp_f,
+          low: day.day.mintemp_f,
+          description: day.day.condition.text,
+          weatherMain: day.day.condition.text,
+        }));
 
         setForecast(dailyData);
         setLoading(false);
@@ -69,13 +55,13 @@ function Box() {
     };
 
     fetchWeatherData();
-  }, [apiKey]);
+  }, [latitude, longitude]);
 
   const handleToggle = () => {
     setShowAlternate(!showAlternate);
   };
 
-  //Connect this to the data base
+  // Static weather data (replace or integrate with dynamic data as needed)
   const weatherData = {
     temperature: 58,
     condition: 'Sunny',
@@ -94,12 +80,11 @@ function Box() {
       }}
     >
       <div
-  className="absolute top-1 right-1 cursor-pointer text-white text-2xl"
-  onClick={handleToggle}
->
-  +
-</div>
-
+        className="absolute top-1 right-1 cursor-pointer text-white text-2xl"
+        onClick={handleToggle}
+      >
+        +
+      </div>
 
       {!showAlternate ? (
         <div className="flex flex-1">

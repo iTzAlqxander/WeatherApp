@@ -6,22 +6,42 @@ IT225 WeatherApp Project
   Auther      : www.freenove.com
   Modification: 2024/06/19
 **********************************************************************/
-#include "DHTesp.h"
 
-DHTesp dht;     //Define the DHT object
-int dhtPin = 13;//Define the dht pin
+#include "DHT.h"
+
+// Pin configuration
+#define DHTPIN 13
+#define DHTTYPE DHT11
+
+// Initialize DHT sensor
+DHT dht(DHTPIN, DHTTYPE);
 
 void setup() {
-  dht.setup(dhtPin, DHTesp::DHT11);//Initialize the dht pin and dht object
-  Serial.begin(115200);              //Set the baud rate as 115200
+  Serial.begin(115200);
+  dht.begin();
+  Serial.println("DHT11 Sensor Test");
 }
 
 void loop() {
-  flag:TempAndHumidity newValues = dht.getTempAndHumidity();//Get the Temperature and humidity
-  if (dht.getStatus() != 0) {//Judge if the correct value is read
-    goto flag;               //If there is an error, go back to the flag and re-read the data
+  float humidity = dht.readHumidity();
+  float tempC = dht.readTemperature();
+  float tempF = dht.readTemperature(true);
+
+  // Check if readings failed
+  if (isnan(humidity) || isnan(tempC) || isnan(tempF)) {
+    Serial.println("Failed to read from DHT sensor!");
+    return;
   }
-  Serial.println(" Temperature:" + String(newValues.temperature) + 
-  " Humidity:" + String(newValues.humidity));
-  delay(2000);
+
+  Serial.print("Humidity: ");
+  Serial.print(humidity);
+  Serial.print("%  |  ");
+  
+  Serial.print("Temperature: ");
+  Serial.print(tempC);
+  Serial.print("°C / ");
+  Serial.print(tempF);
+  Serial.println("°F");
+
+  delay(2000); // Wait 2 seconds between measurements
 }
