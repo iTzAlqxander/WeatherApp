@@ -7,7 +7,7 @@ import pressureIcon from '../assets/pressure.png';
 function WeatherDetails({ temperature, condition, location, humidity, windSpeed, airPressure }) {
   return (
     <div className="text-white flex flex-col items-center justify-center p-4 md:p-6 lg:p-8">
-      <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold">{temperature}°C</h1>
+      <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold">{temperature}°F</h1>
       <p className="text-lg md:text-xl">{condition}</p>
       <p className="text-md md:text-lg">{location}</p>
       <div className="flex flex-col md:flex-row items-center space-y-2 md:space-y-0 md:space-x-4 mt-2">

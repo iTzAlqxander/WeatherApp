@@ -22,110 +22,76 @@ app.use((req, res, next) => {
     next();
 });
 
-// Initialize WebSocket server with CORS
-const wss = new WebSocket.Server({ 
-    port: 8080,
-    cors: {
-        origin: 'http://localhost:3000',
-        methods: ['GET', 'POST']
-    }
-});
-
+// Initialize WebSocket server
+const wss = new WebSocket.Server({ port: 8080 });
 console.log('[WebSocket] Server started on port 8080');
 
 // Serial port configuration
-const SERIAL_PORT = '/dev/tty.usbserial-10';
+const SERIAL_PORT = process.env.SERIAL_PORT || '/dev/tty.usbserial-10';
 const BAUD_RATE = 115200;
 
 let serialPort;
-let isConnecting = false;
+let latestSensorData = null; // To store the latest sensor data
 
-async function initializeSerialPort() {
-    if (isConnecting) return;
-    isConnecting = true;
+function initializeSerialPort() {
+    console.log(`[Serial] Attempting to connect to ${SERIAL_PORT}`);
 
-    try {
-        console.log(`[Serial] Attempting to connect to ${SERIAL_PORT}`);
-        
-        // List available ports
-        const ports = await SerialPort.list();
-        console.log('[Serial] Available ports:', ports);
+    serialPort = new SerialPort({
+        path: SERIAL_PORT,
+        baudRate: BAUD_RATE,
+        autoOpen: false // Prevent automatic opening
+    });
 
-        // Close existing connection if it exists
-        if (serialPort?.isOpen) {
-            await new Promise((resolve) => {
-                serialPort.close(() => {
-                    console.log('[Serial] Closed existing connection');
-                    resolve();
-                });
-            });
+    const parser = serialPort.pipe(new ReadlineParser());
+
+    serialPort.open((err) => {
+        if (err) {
+            console.error('[Serial] Error opening port:', err.message);
+            broadcastStatus('error', err.message);
+            // Attempt to reconnect after 5 seconds
+            setTimeout(initializeSerialPort, 5000);
+            return;
         }
+        console.log('[Serial] Port opened successfully');
+    });
 
-        // Create new connection
-        serialPort = new SerialPort({
-            path: SERIAL_PORT,
-            baudRate: BAUD_RATE,
-            autoOpen: false
-        });
+    serialPort.on('open', () => {
+        console.log('[Serial] Connection established');
+        broadcastStatus('connected');
+    });
 
-        serialPort.open((err) => {
-            if (err) {
-                console.error('[Serial] Error opening port:', err.message);
-                broadcastStatus('error', err.message);
-                isConnecting = false;
-                setTimeout(initializeSerialPort, 5000);
-                return;
-            }
-            console.log('[Serial] Port opened successfully');
-            isConnecting = false;
-        });
-
-        const parser = serialPort.pipe(new ReadlineParser());
-
-        serialPort.on('open', () => {
-            console.log('[Serial] Connection established');
-            broadcastStatus('connected');
-            isConnecting = false;
-        });
-
-        serialPort.on('error', (error) => {
-            console.error('[Serial] Error:', error.message);
-            broadcastStatus('error', error.message);
-            isConnecting = false;
-            setTimeout(initializeSerialPort, 5000);
-        });
-
-        serialPort.on('close', () => {
-            console.log('[Serial] Connection closed');
-            broadcastStatus('disconnected');
-            isConnecting = false;
-            setTimeout(initializeSerialPort, 5000);
-        });
-
-        parser.on('data', (data) => {
-            console.log('[Serial] Received data:', data);
-            try {
-                const matches = data.match(/Temperature:([\d.]+) Humidity:([\d.]+)/);
-                if (matches) {
-                    const sensorData = {
-                        type: 'sensorData',
-                        temperature: parseFloat(matches[1]),
-                        humidity: parseFloat(matches[2]),
-                        timestamp: new Date().toISOString()
-                    };
-                    broadcastData(sensorData);
-                }
-            } catch (error) {
-                console.error('[Serial] Error parsing data:', error);
-            }
-        });
-
-    } catch (error) {
-        console.error('[Serial] Initialization error:', error);
+    serialPort.on('error', (error) => {
+        console.error('[Serial] Error:', error.message);
         broadcastStatus('error', error.message);
-        isConnecting = false;
+        // Attempt to reconnect after 5 seconds
         setTimeout(initializeSerialPort, 5000);
-    }
+    });
+
+    serialPort.on('close', () => {
+        console.log('[Serial] Connection closed');
+        broadcastStatus('disconnected');
+        // Attempt to reconnect after 5 seconds
+        setTimeout(initializeSerialPort, 5000);
+    });
+
+    parser.on('data', (data) => {
+        console.log('[Serial] Received data:', data);
+        try {
+            const dhtMatch = data.match(/\[DHT11\] ([\d.]+)C\/([\d.]+)F, Humidity: ([\d.]+)%/);
+            if (dhtMatch) {
+                const sensorData = {
+                    type: 'sensorData',
+                    temperature: parseFloat(dhtMatch[2]),
+                    humidity: parseFloat(dhtMatch[3]),
+                    timestamp: new Date().toISOString()
+                };
+                latestSensorData = sensorData;
+                broadcastData(sensorData);
+            }
+        } catch (error) {
+            console.error('[Serial] Error parsing data:', error);
+        }
+    });
 }
 
 // WebSocket broadcast functions
@@ -163,6 +129,11 @@ wss.on('connection', (ws) => {
         }));
     }
 
+    // Send the latest sensor data if available
+    if (latestSensorData) {
+        ws.send(JSON.stringify(latestSensorData));
+    }
+
     ws.on('close', () => {
         console.log('[WebSocket] Client disconnected');
     });
@@ -179,8 +150,18 @@ app.get('/api/status', (req, res) => {
     });
 });
 
+// New API endpoint to get the latest weather data
+app.get('/api/weather', (req, res) => {
+    if (latestSensorData) {
+        res.json(latestSensorData);
+    } else {
+        res.status(404).json({ message: 'No sensor data available' });
+    }
+});
+
 // Initialize serial port connection
 initializeSerialPort();
+
 // Start Express server
 app.listen(PORT, () => {
     console.log(`[Express] Server running on port ${PORT}`);
