@@ -15,12 +15,23 @@ function Box() {
     timestamp: null
   });
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
-  const wsRef = useRef(null);
+  const [apiData, setApiData] = useState({
+    condition: '',
+    location: '',
+    windSpeed: 0,
+    airPressure: 0,
+    sunrise: '',
+    sunset: '',
+    visibility: 0,
+    clouds: 0,
+    pop: 0,
+  });
   const [relativeTime, setRelativeTime] = useState('');
+  const wsRef = useRef(null);
 
   const latitude = 40.525639;
   const longitude = -89.012779;
-  const apiKey = 'your_api_key';
+  const apiKey = process.env.REACT_APP_WEATHER_API_KEY;
 
   useEffect(() => {
     const updateDaysToShow = () => {
@@ -43,14 +54,29 @@ function Box() {
     const fetchWeatherData = async () => {
       try {
         setLoading(true);
-        
-        // Fetch forecast data from OpenWeatherMap
-        const forecastResponse = await fetch(
+        const response = await fetch(
           `https://api.openweathermap.org/data/2.5/forecast?lat=${latitude}&lon=${longitude}&appid=${apiKey}&units=metric`
         );
-        const forecastData = await forecastResponse.json();
+        const data = await response.json();
 
-        const groupedData = forecastData.list.reduce((acc, item) => {
+        // Extract current weather data from the first item in the list
+        if (data.list && data.list.length > 0) {
+          const current = data.list[0];
+          setApiData({
+            condition: current.weather[0].description,
+            location: `${data.city.name}, ${data.city.country}`,
+            windSpeed: current.wind.speed,
+            airPressure: current.main.pressure,
+            sunrise: new Date(data.city.sunrise * 1000).toLocaleTimeString(),
+            sunset: new Date(data.city.sunset * 1000).toLocaleTimeString(),
+            visibility: current.visibility,
+            clouds: current.clouds.all,
+            pop: current.pop,
+          });
+        }
+
+        // Process forecast data
+        const groupedData = data.list.reduce((acc, item) => {
           const date = new Date(item.dt * 1000).toLocaleDateString('en-US');
           if (!acc[date]) {
             acc[date] = { temps: [], weather: item.weather[0] };
@@ -69,6 +95,7 @@ function Box() {
             low: (lowCelsius * 9 / 5) + 32,
             description: weather.description,
             weatherMain: weather.main,
+            icon: weather.icon,
           };
         });
 
@@ -174,12 +201,17 @@ function Box() {
 
   // Combine Arduino sensor data with API data
   const weatherData = {
-    temperature: sensorData.temperature || 58, // Use sensor data if available, fallback to default
-    condition: 'Sunny', // From API
-    location: 'Normal, IL',
-    humidity: sensorData.humidity || 68, // Use sensor data if available, fallback to default
-    windSpeed: 2, // From API
-    airPressure: 30.15, // From API
+    temperature: sensorData.temperature, // From Arduino
+    description: apiData.condition, // This is now the weather description
+    location: apiData.location, // From API
+    humidity: sensorData.humidity, // From Arduino
+    windSpeed: apiData.windSpeed, // From API
+    airPressure: apiData.airPressure, // From API
+    sunrise: apiData.sunrise, // From API
+    sunset: apiData.sunset, // From API
+    visibility: apiData.visibility, // From API
+    clouds: apiData.clouds, // From API
+    pop: apiData.pop, // From API
     lastUpdated: relativeTime
   };
 
@@ -194,7 +226,7 @@ function Box() {
         }}
       >
         <div
-          className="absolute top-1 right-1 cursor-pointer text-white text-2xl"
+          className="absolute top-2 right-2 cursor-pointer text-white text-2xl"
           onClick={handleToggle}
         >
           +
@@ -203,25 +235,30 @@ function Box() {
         {!showAlternate ? (
           <div className="flex flex-1">
             <div className="w-2/5 h-full flex items-center justify-center">
-              <WeatherIcon weatherCondition={weatherData.condition} />
+              <WeatherIcon weatherCondition={weatherData.description} />
             </div>
             <div className="w-3/5 h-full flex flex-col items-center justify-center">
-              {sensorData.temperature !== null ? (
-                <WeatherDetails
-                  temperature={weatherData.temperature}
-                  condition={weatherData.condition}
-                  location={weatherData.location}
-                  humidity={weatherData.humidity}
-                  windSpeed={weatherData.windSpeed}
-                  airPressure={weatherData.airPressure}
-                />
+              {sensorData.temperature !== null && sensorData.humidity !== null ? (
+                <>
+                  <WeatherDetails
+                    temperature={weatherData.temperature}
+                    condition={weatherData.description}
+                    location={weatherData.location}
+                    humidity={weatherData.humidity}
+                    windSpeed={weatherData.windSpeed}
+                    airPressure={weatherData.airPressure}
+                  />
+                  <div className="mt-2 text-sm text-gray-300">
+                    <p>Sunrise: {weatherData.sunrise}</p>
+                    <p>Sunset: {weatherData.sunset}</p>
+                    <p>Visibility: {weatherData.visibility} meters</p>
+                    <p>Cloudiness: {weatherData.clouds}%</p>
+                    <p>Precipitation Probability: {Math.round(weatherData.pop * 100)}%</p>
+                    <p>Last updated: {weatherData.lastUpdated}</p>
+                  </div>
+                </>
               ) : (
                 <p className="text-white">Loading sensor data...</p>
-              )}
-              {sensorData.timestamp && (
-                <p className="mt-2 text-sm text-gray-300">
-                  Last updated: {weatherData.lastUpdated}
-                </p>
               )}
             </div>
           </div>
