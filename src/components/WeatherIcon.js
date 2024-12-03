@@ -100,7 +100,12 @@ function WeatherIcon({ weatherCondition }) {
     // Get the icon code or use a default
     const iconCode = iconMap[normalizedCondition] || '01d';
     
-    // Return the full URL with @2x for higher resolution
+    // Add logging
+    console.log('[WeatherIcon] Condition:', condition);
+    console.log('[WeatherIcon] Normalized:', normalizedCondition);
+    console.log('[WeatherIcon] Icon code:', iconCode);
+    console.log('[WeatherIcon] Full URL:', `${baseUrl}${iconCode}@2x.png`);
+    
     return `${baseUrl}${iconCode}@2x.png`;
   };
 
@@ -110,10 +115,10 @@ function WeatherIcon({ weatherCondition }) {
         <img
           src={getWeatherIcon(weatherCondition)}
           alt={weatherCondition}
-          className="w-16 h-16 sm:w-24 sm:h-24 md:w-32 md:h-32 lg:w-40 lg:h-40 xl:w-48 xl:h-48"
+          className="w-24 h-24"
           onError={(e) => {
             e.target.onerror = null;
-            e.target.src = getWeatherIcon('Clear'); // Fallback to clear sky icon if loading fails
+            e.target.src = getWeatherIcon('Clear');
           }}
         />
       ) : (

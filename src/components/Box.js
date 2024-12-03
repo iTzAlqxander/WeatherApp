@@ -4,6 +4,7 @@ import WeatherDetails from './WeatherDetails';
 import FourDayForecast from './FourDayForecast';
 import ConnectionStatus from './ConnectionStatus';
 
+
 function Box() {
   const [showAlternate, setShowAlternate] = useState(false);
   const [forecast, setForecast] = useState([]);
@@ -28,10 +29,11 @@ function Box() {
   });
   const [relativeTime, setRelativeTime] = useState('');
   const wsRef = useRef(null);
+  const [lastFetchTime, setLastFetchTime] = useState(null);
 
   const latitude = 40.525639;
   const longitude = -89.012779;
-  const apiKey = process.env.REACT_APP_WEATHER_API_KEY;
+  const apiKey = '81f4aa6f37ac6e2dd35816e45df4184b'; // i dont give a fuck im hardcoding this shit bro
 
   useEffect(() => {
     const updateDaysToShow = () => {
@@ -52,63 +54,88 @@ function Box() {
 
   useEffect(() => {
     const fetchWeatherData = async () => {
+      const now = new Date().getTime();
+      if (lastFetchTime && now - lastFetchTime < 300000) {
+        console.log('[Box] Using cached weather data');
+        return;
+      }
+
       try {
         setLoading(true);
-        const response = await fetch(
-          `https://api.openweathermap.org/data/2.5/forecast?lat=${latitude}&lon=${longitude}&appid=${apiKey}&units=metric`
-        );
+        console.log('[Box] Fetching new weather data');
+        
+        const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${latitude}&lon=${longitude}&appid=${apiKey}&units=metric`;
+        console.log('[Box] API URL:', url.replace(apiKey, 'HIDDEN_KEY'));
+        
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
         const data = await response.json();
 
-        // Extract current weather data from the first item in the list
-        if (data.list && data.list.length > 0) {
-          const current = data.list[0];
-          setApiData({
-            condition: current.weather[0].description,
-            location: `${data.city.name}, ${data.city.country}`,
-            windSpeed: current.wind.speed,
-            airPressure: current.main.pressure,
-            sunrise: new Date(data.city.sunrise * 1000).toLocaleTimeString(),
-            sunset: new Date(data.city.sunset * 1000).toLocaleTimeString(),
-            visibility: current.visibility,
-            clouds: current.clouds.all,
-            pop: current.pop,
-          });
+        console.log('[Box] Weather API response:', JSON.stringify(data, null, 2));
+
+        if (!data.list || data.list.length === 0) {
+          throw new Error('Invalid API response format');
         }
 
-        // Process forecast data
-        const groupedData = data.list.reduce((acc, item) => {
-          const date = new Date(item.dt * 1000).toLocaleDateString('en-US');
-          if (!acc[date]) {
-            acc[date] = { temps: [], weather: item.weather[0] };
-          }
-          acc[date].temps.push(item.main.temp);
-          return acc;
-        }, {});
+        const current = data.list[0];
+        const newApiData = {
+          condition: current.weather[0].description,
+          location: `${data.city.name}, ${data.city.country}`,
+          windSpeed: Math.round(current.wind.speed),
+          airPressure: Math.round(current.main.pressure),
+          sunrise: new Date(data.city.sunrise * 1000).toLocaleTimeString([], { 
+            hour: '2-digit', 
+            minute: '2-digit',
+            hour12: true 
+          }),
+          sunset: new Date(data.city.sunset * 1000).toLocaleTimeString([], { 
+            hour: '2-digit', 
+            minute: '2-digit',
+            hour12: true 
+          }),
+          visibility: current.visibility,
+          clouds: current.clouds.all,
+          pop: current.pop,
+        };
 
-        const dailyData = Object.entries(groupedData).map(([date, { temps, weather }]) => {
-          const highCelsius = Math.max(...temps);
-          const lowCelsius = Math.min(...temps);
-
-          return {
-            date,
-            high: (highCelsius * 9 / 5) + 32,
-            low: (lowCelsius * 9 / 5) + 32,
-            description: weather.description,
-            weatherMain: weather.main,
-            icon: weather.icon,
-          };
-        });
-
-        setForecast(dailyData);
+        console.log('[Box] Processed API data:', newApiData);
+        
+        setApiData(newApiData);
+        setLastFetchTime(now);
         setLoading(false);
+
+        // Process forecast data
+        const forecastData = data.list
+          .filter((item, index) => index % 8 === 0) // Get one reading per day
+          .map(item => ({
+            date: new Date(item.dt * 1000),
+            description: item.weather[0].description,
+            high: item.main.temp_max,
+            low: item.main.temp_min,
+            icon: item.weather[0].icon,
+            pop: item.pop, // Probability of precipitation
+            humidity: item.main.humidity,
+            windSpeed: item.wind.speed,
+            clouds: item.clouds.all
+          }));
+
+        console.log('[Box] Processed forecast data:', forecastData);
+        setForecast(forecastData);
       } catch (error) {
-        console.error('Error fetching weather data:', error);
+        console.error('[Box] Error fetching weather data:', error);
+        if (error.response) {
+          console.error('[Box] Error response:', await error.response.text());
+        }
         setLoading(false);
       }
     };
 
     fetchWeatherData();
-  }, [apiKey, latitude, longitude]);
+    const interval = setInterval(fetchWeatherData, 60000);
+    return () => clearInterval(interval);
+  }, [apiKey, latitude, longitude, lastFetchTime]);
 
   useEffect(() => {
     const connectWebSocket = () => {
@@ -167,12 +194,14 @@ function Box() {
   useEffect(() => {
     const updateRelativeTime = () => {
       if (sensorData.timestamp) {
-        const now = new Date();
-        const updatedTime = new Date(sensorData.timestamp);
+        const now = Date.now();
+        const updatedTime = new Date(sensorData.timestamp).getTime();
         const diffInSeconds = Math.floor((now - updatedTime) / 1000);
 
         let relative = '';
-        if (diffInSeconds < 60) {
+        if (diffInSeconds < 2.5) {
+          relative = 'just now';
+        } else if (diffInSeconds < 60) {
           relative = `${diffInSeconds} seconds ago`;
         } else if (diffInSeconds < 3600) {
           const minutes = Math.floor(diffInSeconds / 60);
@@ -185,13 +214,20 @@ function Box() {
           relative = `${days} day${days !== 1 ? 's' : ''} ago`;
         }
 
+        console.log('[Box] Timestamp update:', {
+          now,
+          updatedTime,
+          diffInSeconds,
+          relative
+        });
+
         setRelativeTime(relative);
       }
     };
 
-    // Update immediately and then every minute
+    // Update immediately and then every second for more accurate updates
     updateRelativeTime();
-    const interval = setInterval(updateRelativeTime, 60000);
+    const interval = setInterval(updateRelativeTime, 1000);
     return () => clearInterval(interval);
   }, [sensorData.timestamp]);
 
@@ -216,63 +252,97 @@ function Box() {
   };
 
   return (
-    <>
-      <ConnectionStatus status={connectionStatus} />
-      <div
-        className="w-2/5 h-2/5 rounded-lg flex flex-col overflow-hidden relative"
-        style={{
-          backgroundImage: 'linear-gradient(to bottom, #2a2a2a, #4d4d4d)',
-          boxShadow: '0 15px 40px rgba(0, 0, 0, 0.8)',
-        }}
-      >
+    <div className="flex flex-col items-center gap-4">
+      <div className="w-[500px] rounded-2xl flex flex-col overflow-hidden relative bg-[#1a1f25] text-white shadow-2xl p-6">
         <div
-          className="absolute top-2 right-2 cursor-pointer text-white text-2xl"
+          className="absolute top-4 right-4 cursor-pointer text-white/70 text-2xl hover:text-white transition-colors"
           onClick={handleToggle}
         >
-          +
+          {showAlternate ? '×' : '+'}
         </div>
 
         {!showAlternate ? (
-          <div className="flex flex-1">
-            <div className="w-2/5 h-full flex items-center justify-center">
+          <div className="flex flex-col h-full">
+            {/* Main Temperature */}
+            <h1 className="text-6xl font-light mb-2">{weatherData.temperature}°F</h1>
+            
+            {/* Weather Description and Location */}
+            <h2 className="text-2xl font-light text-white/90 capitalize mb-1">
+              {weatherData.description}
+            </h2>
+            <p className="text-lg text-white/70 mb-8">{weatherData.location}</p>
+
+            {/* Weather Icon - Positioned to the right */}
+            <div className="absolute top-4 right-16">
               <WeatherIcon weatherCondition={weatherData.description} />
             </div>
-            <div className="w-3/5 h-full flex flex-col items-center justify-center">
-              {sensorData.temperature !== null && sensorData.humidity !== null ? (
-                <>
-                  <WeatherDetails
-                    temperature={weatherData.temperature}
-                    condition={weatherData.description}
-                    location={weatherData.location}
-                    humidity={weatherData.humidity}
-                    windSpeed={weatherData.windSpeed}
-                    airPressure={weatherData.airPressure}
-                  />
-                  <div className="mt-2 text-sm text-gray-300">
-                    <p>Sunrise: {weatherData.sunrise}</p>
-                    <p>Sunset: {weatherData.sunset}</p>
-                    <p>Visibility: {weatherData.visibility} meters</p>
-                    <p>Cloudiness: {weatherData.clouds}%</p>
-                    <p>Precipitation Probability: {Math.round(weatherData.pop * 100)}%</p>
-                    <p>Last updated: {weatherData.lastUpdated}</p>
-                  </div>
-                </>
-              ) : (
-                <p className="text-white">Loading sensor data...</p>
-              )}
+
+            {/* Main Weather Stats */}
+            <div className="grid grid-cols-3 gap-6 mb-8">
+              <div className="bg-white/5 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-blue-300">💧</span>
+                  <span className="text-white/70">Humidity</span>
+                </div>
+                <p className="text-2xl">{weatherData.humidity}%</p>
+              </div>
+              <div className="bg-white/5 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-blue-300">💨</span>
+                  <span className="text-white/70">Wind</span>
+                </div>
+                <p className="text-2xl">{weatherData.windSpeed} MPH</p>
+              </div>
+              <div className="bg-white/5 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-blue-300">🌡️</span>
+                  <span className="text-white/70">Pressure</span>
+                </div>
+                <p className="text-2xl">{weatherData.airPressure} hPa</p>
+              </div>
+            </div>
+
+            {/* Additional Weather Info */}
+            <div className="space-y-3 text-base">
+              <div className="flex justify-between">
+                <span className="text-white/70">Visibility</span>
+                <span>{(weatherData.visibility / 1000).toFixed(1)} km</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/70">Cloud Cover</span>
+                <span>{weatherData.clouds}%</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/70">Chance of Rain</span>
+                <span>{Math.round(weatherData.pop * 100)}%</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/70">Sunrise</span>
+                <span>{weatherData.sunrise}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/70">Sunset</span>
+                <span>{weatherData.sunset}</span>
+              </div>
+            </div>
+
+            {/* Add last updated text at bottom of main display */}
+            <div className="mt-4 text-sm text-white/50 text-center">
+              Last updated {relativeTime}
             </div>
           </div>
         ) : (
-          <div className="flex-1 p-4 text-white flex items-center justify-center">
-            {loading ? (
-              <p>Loading forecast...</p>
-            ) : (
-              <FourDayForecast forecast={forecast.slice(0, daysToShow)} />
-            )}
-          </div>
+          <FourDayForecast forecast={forecast.slice(0, daysToShow)} />
         )}
       </div>
-    </>
+
+      {/* Connection status moved below box */}
+      <div className="flex flex-col items-center gap-2">
+        <div className="text-white/70 text-sm">
+          <ConnectionStatus status={connectionStatus} />
+        </div>
+      </div>
+    </div>
   );
 }
 

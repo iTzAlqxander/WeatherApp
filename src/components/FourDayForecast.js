@@ -1,62 +1,66 @@
-import React, { useEffect, useState } from 'react';
-import sunnyImage from '../assets/sunny.png';
-import cloudyImage from '../assets/cloudy.png';
-import rainyImage from '../assets/rainy.png';
+import React from 'react';
+import WeatherIcon from './WeatherIcon';
 
 function FourDayForecast({ forecast }) {
-  const [daysToShow, setDaysToShow] = useState(4);
+  if (!forecast || forecast.length === 0) {
+    return <p className="text-white/70">Loading forecast data...</p>;
+  }
 
-  useEffect(() => {
-    const updateDaysToShow = () => {
-      if (window.innerWidth < 600) {
-        setDaysToShow(2);
-      } else if (window.innerWidth < 900) {
-        setDaysToShow(3);
-      } else {
-        setDaysToShow(4);
-      }
-    };
-
-    updateDaysToShow();
-    window.addEventListener('resize', updateDaysToShow);
-
-    return () => {
-      window.removeEventListener('resize', updateDaysToShow);
-    };
-  }, []);
+  // Modified sorting to ensure correct order
+  const sortedForecast = [...forecast].sort((a, b) => {
+    const dateA = new Date(a.date).setHours(0, 0, 0, 0);
+    const dateB = new Date(b.date).setHours(0, 0, 0, 0);
+    return dateA - dateB;
+  });
 
   return (
-    <div className="flex gap-3 justify-center">
-      {forecast.length > 0 ? (
-        forecast.slice(0, daysToShow).map((day, index) => {
-          let weatherImage;
-          const descriptionLowerCase = day.description.toLowerCase();
-          if (descriptionLowerCase.includes('rain')) {
-            weatherImage = rainyImage;
-          } else if (descriptionLowerCase.includes('clear sky')) {
-            weatherImage = sunnyImage;
-          } else if (descriptionLowerCase.includes('clouds')) {
-            weatherImage = cloudyImage;
-          }
-
-          return (
-            <div
-              key={index}
-              className="bg-gradient-to-b from-gray-600 to-gray-400 w-32 h-40 p-3 flex flex-col items-center justify-center text-white rounded-lg shadow-md"
-            >
-              <p className="font-semibold text-sm">
-                {new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' })}
-              </p>
-              {weatherImage && <img src={weatherImage} alt={day.description} className="w-10 h-10 mb-1" />}
-              <p className="capitalize text-sm">{day.description}</p>
-              <p className="mt-1 text-sm">High: {Math.round(day.high)}°F</p>
-              <p className="text-sm">Low: {Math.round(day.low)}°F</p>
+    <div className="w-full h-full flex flex-col">
+      <div className="grid grid-cols-4 gap-4">
+        {sortedForecast.map((day, index) => (
+          <div
+            key={index}
+            className="flex flex-col items-center"
+          >
+            {/* Day */}
+            <h2 className="text-2xl font-light text-white mb-6">
+              {day.date.toLocaleDateString('en-US', { weekday: 'short' })}
+            </h2>
+            
+            {/* Weather Icon */}
+            <div className="w-24 h-24 mb-4">
+              <WeatherIcon weatherCondition={day.description} />
             </div>
-          );
-        })
-      ) : (
-        <p>Loading weather data...</p>
-      )}
+            
+            {/* Weather Description */}
+            <p className="text-lg text-white/90 capitalize mb-6">
+              {day.description}
+            </p>
+            
+            {/* Temperatures with separator - ensure consistent width and alignment */}
+            <div className="flex items-center justify-center w-full text-2xl mb-6">
+              <span className="text-white">{Math.round(day.high)}°</span>
+              <span className="text-white/30 mx-3">|</span>
+              <span className="text-white/50">{Math.round(day.low)}°</span>
+            </div>
+
+            {/* Additional Info */}
+            <div className="w-full space-y-3 text-sm">
+              <div className="flex justify-between items-center">
+                <span className="text-white/50">Rain</span>
+                <span className="text-white">{Math.round(day.pop * 100)}%</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-white/50">Humidity</span>
+                <span className="text-white">{day.humidity}%</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-white/50">Wind</span>
+                <span className="text-white">{Math.round(day.windSpeed)} mph</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
