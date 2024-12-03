@@ -64,7 +64,7 @@ function Box() {
         setLoading(true);
         console.log('[Box] Fetching new weather data');
         
-        const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${latitude}&lon=${longitude}&appid=${apiKey}&units=metric`;
+        const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${latitude}&lon=${longitude}&appid=${apiKey}&units=imperial`;
         console.log('[Box] API URL:', url.replace(apiKey, 'HIDDEN_KEY'));
         
         const response = await fetch(url);
@@ -107,21 +107,74 @@ function Box() {
         setLoading(false);
 
         // Process forecast data
-        const forecastData = data.list
-          .filter((item, index) => index % 8 === 0) // Get one reading per day
-          .map(item => ({
-            date: new Date(item.dt * 1000),
-            description: item.weather[0].description,
-            high: item.main.temp_max,
-            low: item.main.temp_min,
-            icon: item.weather[0].icon,
-            pop: item.pop, // Probability of precipitation
-            humidity: item.main.humidity,
-            windSpeed: item.wind.speed,
-            clouds: item.clouds.all
-          }));
+        // Group forecast data by day
+const groupedData = data.list.reduce((acc, item) => {
+  const date = new Date(item.dt * 1000).toISOString().split('T')[0]; // Extract date in 'YYYY-MM-DD' format
+  if (!acc[date]) {
+    acc[date] = [];
+  }
+  acc[date].push(item);
+  return acc;
+}, {});
+
+// Process the grouped data to get daily forecasts
+// Function to process forecast data for better high/low accuracy
+const forecastData = Object.entries(
+  data.list.reduce((acc, item) => {
+    // Convert UTC timestamp to CST
+    const localDate = new Date(item.dt * 1000).toLocaleDateString('en-US', {
+      timeZone: 'America/Chicago', // CST Time Zone
+    });
+
+    if (!acc[localDate]) {
+      acc[localDate] = [];
+    }
+    acc[localDate].push(item);
+    return acc;
+  }, {})
+)
+  // Map over grouped data
+  .map(([date, items]) => {
+    const daytimeTemps = items.filter(item => {
+      const hour = new Date(item.dt * 1000).getHours();
+      return hour >= 6 && hour <= 18;
+    }).map(item => item.main.temp);
+
+    const nighttimeTemps = items.filter(item => {
+      const hour = new Date(item.dt * 1000).getHours();
+      return hour < 6 || hour > 18;
+    }).map(item => item.main.temp);
+
+    const high = Math.max(...daytimeTemps);
+    const low = Math.min(...nighttimeTemps);
+
+    return {
+      date: new Date(date), // Corrected date in CST
+      description: items.find(item => item.weather[0]).weather[0].description,
+      high: high,
+      low: low,
+      icon: items.find(item => item.weather[0]).weather[0].icon,
+      pop: Math.max(...items.map(item => item.pop)),
+      humidity: Math.round(items.reduce((sum, item) => sum + item.main.humidity, 0) / items.length),
+      windSpeed: Math.round(items.reduce((sum, item) => sum + item.wind.speed, 0) / items.length),
+      clouds: Math.round(items.reduce((sum, item) => sum + item.clouds.all, 0) / items.length)
+    };
+  })
+  // Filter for dates starting from tomorrow and covering the next 4 days
+  .filter(entry => {
+    const today = new Date();
+    const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1); // Start of tomorrow
+    const fourDaysLater = new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate() + 4); // 4 days after tomorrow
+
+    const entryDate = new Date(entry.date.getFullYear(), entry.date.getMonth(), entry.date.getDate()); // Normalize date
+    return entryDate >= tomorrow && entryDate < fourDaysLater;
+  });
+
+
+
 
         console.log('[Box] Processed forecast data:', forecastData);
+
         setForecast(forecastData);
       } catch (error) {
         console.error('[Box] Error fetching weather data:', error);

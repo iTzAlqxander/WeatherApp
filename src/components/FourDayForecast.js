@@ -31,10 +31,16 @@ function FourDayForecast({ forecast }) {
               <WeatherIcon weatherCondition={day.description} />
             </div>
             
-            {/* Weather Description */}
-            <p className="text-lg text-white/90 capitalize mb-6">
-              {day.description}
-            </p>
+            <div className="flex flex-col items-center mb-6" style={{ height: '50px' }}>
+              <p className="text-lg text-white/90 capitalize text-center" style={{
+                 whiteSpace: 'normal',
+                 textAlign: 'center',
+               }}
+                >
+                {day.description}
+               </p>
+            </div>
+
             
             {/* Temperatures with separator - ensure consistent width and alignment */}
             <div className="flex items-center justify-center w-full text-2xl mb-6">
