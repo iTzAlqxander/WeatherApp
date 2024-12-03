@@ -2,10 +2,8 @@ import React from 'react';
 
 function WeatherIcon({ weatherCondition }) {
   const getWeatherIcon = (condition) => {
-    // Base URL for OpenWeatherMap icons
     const baseUrl = "https://openweathermap.org/img/wn/";
     
-    // Map weather conditions to their respective icon codes
     const iconMap = {
       // Thunderstorm
       'thunderstorm with light rain': '11d',

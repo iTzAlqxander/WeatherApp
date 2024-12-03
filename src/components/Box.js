@@ -4,6 +4,7 @@ import WeatherDetails from './WeatherDetails';
 import FourDayForecast from './FourDayForecast';
 import ConnectionStatus from './ConnectionStatus';
 
+
 function Box() {
   const [showAlternate, setShowAlternate] = useState(false);
   const [forecast, setForecast] = useState([]);
@@ -12,7 +13,7 @@ function Box() {
   const [sensorData, setSensorData] = useState({
     temperature: null,
     humidity: null,
-    timestamp: null,
+    timestamp: null
   });
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
   const [apiData, setApiData] = useState({
@@ -32,7 +33,7 @@ function Box() {
 
   const latitude = 40.525639;
   const longitude = -89.012779;
-  const apiKey = '81f4aa6f37ac6e2dd35816e45df4184b';
+  const apiKey = '81f4aa6f37ac6e2dd35816e45df4184b'; // i dont give a fuck im hardcoding this shit bro
 
   useEffect(() => {
     const updateDaysToShow = () => {
@@ -46,6 +47,7 @@ function Box() {
     };
 
     updateDaysToShow();
+
     window.addEventListener('resize', updateDaysToShow);
     return () => window.removeEventListener('resize', updateDaysToShow);
   }, []);
@@ -61,10 +63,10 @@ function Box() {
       try {
         setLoading(true);
         console.log('[Box] Fetching new weather data');
-
+        
         const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${latitude}&lon=${longitude}&appid=${apiKey}&units=imperial`;
         console.log('[Box] API URL:', url.replace(apiKey, 'HIDDEN_KEY'));
-
+        
         const response = await fetch(url);
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -73,101 +75,104 @@ function Box() {
 
         console.log('[Box] Weather API response:', JSON.stringify(data, null, 2));
 
+        if (!data.list || data.list.length === 0) {
+          throw new Error('Invalid API response format');
+        }
+
         const current = data.list[0];
-        setApiData({
+        const newApiData = {
           condition: current.weather[0].description,
           location: `${data.city.name}, ${data.city.country}`,
-          temperature: Math.round(current.main.temp),
-          humidity: Math.round(current.main.humidity),
           windSpeed: Math.round(current.wind.speed),
           airPressure: Math.round(current.main.pressure),
-          sunrise: new Date(data.city.sunrise * 1000).toLocaleTimeString([], {
-            hour: '2-digit',
+          sunrise: new Date(data.city.sunrise * 1000).toLocaleTimeString([], { 
+            hour: '2-digit', 
             minute: '2-digit',
-            hour12: true,
+            hour12: true 
           }),
-          sunset: new Date(data.city.sunset * 1000).toLocaleTimeString([], {
-            hour: '2-digit',
+          sunset: new Date(data.city.sunset * 1000).toLocaleTimeString([], { 
+            hour: '2-digit', 
             minute: '2-digit',
-            hour12: true,
+            hour12: true 
           }),
           visibility: current.visibility,
           clouds: current.clouds.all,
           pop: current.pop,
-        });
+        };
 
-        const forecastData = Object.entries(
-          data.list.reduce((acc, item) => {
-            const localDate = new Date(item.dt * 1000).toLocaleDateString('en-US', {
-              timeZone: 'America/Chicago',
-            });
-
-            if (!acc[localDate]) {
-              acc[localDate] = [];
-            }
-            acc[localDate].push(item);
-            return acc;
-          }, {})
-        )
-          .map(([date, items]) => {
-            const daytimeTemps = items.filter((item) => {
-              const hour = new Date(item.dt * 1000).getHours();
-              return hour >= 6 && hour <= 18;
-            }).map((item) => item.main.temp);
-
-            const nighttimeTemps = items.filter((item) => {
-              const hour = new Date(item.dt * 1000).getHours();
-              return hour < 6 || hour > 18;
-            }).map((item) => item.main.temp);
-
-            const high = Math.max(...daytimeTemps);
-            const low = Math.min(...nighttimeTemps);
-
-            return {
-              date: new Date(date),
-              description: items.find((item) => item.weather[0]).weather[0].description,
-              high: high,
-              low: low,
-              icon: items.find((item) => item.weather[0]).weather[0].icon,
-              pop: Math.max(...items.map((item) => item.pop)),
-              humidity: Math.round(
-                items.reduce((sum, item) => sum + item.main.humidity, 0) / items.length
-              ),
-              windSpeed: Math.round(
-                items.reduce((sum, item) => sum + item.wind.speed, 0) / items.length
-              ),
-              clouds: Math.round(
-                items.reduce((sum, item) => sum + item.clouds.all, 0) / items.length
-              ),
-            };
-          })
-          .filter((entry) => {
-            const today = new Date();
-            const tomorrow = new Date(
-              today.getFullYear(),
-              today.getMonth(),
-              today.getDate() + 1
-            );
-            const fourDaysLater = new Date(
-              tomorrow.getFullYear(),
-              tomorrow.getMonth(),
-              tomorrow.getDate() + 4
-            );
-
-            const entryDate = new Date(
-              entry.date.getFullYear(),
-              entry.date.getMonth(),
-              entry.date.getDate()
-            );
-            return entryDate >= tomorrow && entryDate < fourDaysLater;
-          });
-
-        console.log('[Box] Processed forecast data:', forecastData);
-        setForecast(forecastData);
+        console.log('[Box] Processed API data:', newApiData);
+        
+        setApiData(newApiData);
         setLastFetchTime(now);
         setLoading(false);
+
+        // Group forecast data by day
+        const groupedData = data.list.reduce((acc, item) => {
+        const date = new Date(item.dt * 1000).toISOString().split('T')[0]; // 'YYYY-MM-DD' format
+  if (!acc[date]) {
+    acc[date] = [];
+  }
+  acc[date].push(item);
+  return acc;
+}, {});
+
+
+const forecastData = Object.entries(
+  data.list.reduce((acc, item) => {
+    const localDate = new Date(item.dt * 1000).toLocaleDateString('en-US', {
+      timeZone: 'America/Chicago',
+    });
+
+    if (!acc[localDate]) {
+      acc[localDate] = [];
+    }
+    acc[localDate].push(item);
+    return acc;
+  }, {})
+)
+  .map(([date, items]) => {
+    const daytimeTemps = items.filter(item => {
+      const hour = new Date(item.dt * 1000).getHours();
+      return hour >= 6 && hour <= 18;
+    }).map(item => item.main.temp);
+
+    const nighttimeTemps = items.filter(item => {
+      const hour = new Date(item.dt * 1000).getHours();
+      return hour < 6 || hour > 18;
+    }).map(item => item.main.temp);
+
+    const high = Math.max(...daytimeTemps);
+    const low = Math.min(...nighttimeTemps);
+
+    return {
+      date: new Date(date),
+      description: items.find(item => item.weather[0]).weather[0].description,
+      high: high,
+      low: low,
+      icon: items.find(item => item.weather[0]).weather[0].icon,
+      pop: Math.max(...items.map(item => item.pop)),
+      humidity: Math.round(items.reduce((sum, item) => sum + item.main.humidity, 0) / items.length),
+      windSpeed: Math.round(items.reduce((sum, item) => sum + item.wind.speed, 0) / items.length),
+      clouds: Math.round(items.reduce((sum, item) => sum + item.clouds.all, 0) / items.length)
+    };
+  })
+  .filter(entry => {
+    const today = new Date();
+    const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+    const fourDaysLater = new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate() + 4);
+
+    const entryDate = new Date(entry.date.getFullYear(), entry.date.getMonth(), entry.date.getDate());
+    return entryDate >= tomorrow && entryDate < fourDaysLater;
+  });
+
+        console.log('[Box] Processed forecast data:', forecastData);
+
+        setForecast(forecastData);
       } catch (error) {
         console.error('[Box] Error fetching weather data:', error);
+        if (error.response) {
+          console.error('[Box] Error response:', await error.response.text());
+        }
         setLoading(false);
       }
     };
@@ -192,7 +197,7 @@ function Box() {
         try {
           const data = JSON.parse(event.data);
           console.log('[Box] Received WebSocket message:', data);
-
+          
           if (data.type === 'status') {
             console.log('[Box] Status update:', data.status);
             setConnectionStatus(data.status);
@@ -201,7 +206,7 @@ function Box() {
             setSensorData({
               temperature: data.temperature,
               humidity: data.humidity,
-              timestamp: data.timestamp,
+              timestamp: data.timestamp
             });
           }
         } catch (error) {
@@ -212,6 +217,7 @@ function Box() {
       ws.onclose = () => {
         console.warn('[Box] WebSocket disconnected');
         setConnectionStatus('disconnected');
+        console.log('[Box] Attempting reconnection in 2 seconds...');
         setTimeout(connectWebSocket, 2000);
       };
 
@@ -230,21 +236,61 @@ function Box() {
     };
   }, []);
 
+  useEffect(() => {
+    const updateRelativeTime = () => {
+      if (sensorData.timestamp) {
+        const now = Date.now();
+        const updatedTime = new Date(sensorData.timestamp).getTime();
+        const diffInSeconds = Math.floor((now - updatedTime) / 1000);
+
+        let relative = '';
+        if (diffInSeconds < 2.5) {
+          relative = 'just now';
+        } else if (diffInSeconds < 60) {
+          relative = `${diffInSeconds} seconds ago`;
+        } else if (diffInSeconds < 3600) {
+          const minutes = Math.floor(diffInSeconds / 60);
+          relative = `${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
+        } else if (diffInSeconds < 86400) {
+          const hours = Math.floor(diffInSeconds / 3600);
+          relative = `${hours} hour${hours !== 1 ? 's' : ''} ago`;
+        } else {
+          const days = Math.floor(diffInSeconds / 86400);
+          relative = `${days} day${days !== 1 ? 's' : ''} ago`;
+        }
+
+        console.log('[Box] Timestamp update:', {
+          now,
+          updatedTime,
+          diffInSeconds,
+          relative
+        });
+
+        setRelativeTime(relative);
+      }
+    };
+    updateRelativeTime();
+    const interval = setInterval(updateRelativeTime, 1000);
+    return () => clearInterval(interval);
+  }, [sensorData.timestamp]);
+
   const handleToggle = () => {
     setShowAlternate(!showAlternate);
   };
 
   const weatherData = {
-    temperature:
-      connectionStatus === 'connected' && sensorData.temperature !== null
-        ? sensorData.temperature
-        : apiData.temperature,
-    humidity:
-      connectionStatus === 'connected' && sensorData.humidity !== null
-        ? sensorData.humidity
-        : apiData.humidity,
+    temperature: sensorData.temperature,
     description: apiData.condition,
     location: apiData.location,
+    humidity: sensorData.humidity,
+    windSpeed: apiData.windSpeed,
+    airPressure: apiData.airPressure,
+    sunrise: apiData.sunrise,
+    sunset: apiData.sunset,
+    visibility: apiData.visibility, 
+    clouds: apiData.clouds, 
+    pop: apiData.pop, 
+    lastUpdated: relativeTime
   };
 
   return (
@@ -257,69 +303,89 @@ function Box() {
           {showAlternate ? '×' : '+'}
         </div>
 
-        {!showAlternate ? (
-          <div className="flex flex-col h-full">
-            <h1 className="text-6xl font-light mb-2">{weatherData.temperature}°F</h1>
-            <h2 className="text-2xl font-light text-white/90 capitalize mb-1">
-              {weatherData.description}
-            </h2>
-            <div className="absolute top-4 right-16">
-            <WeatherIcon weatherCondition={weatherData.description} />
-            </div>
-            <p className="text-lg text-white/70 mb-8">{weatherData.location}</p>
-            <div className="grid grid-cols-3 gap-6 mb-8">
-              <div className="bg-white/5 rounded-xl p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-blue-300">💧</span>
-                  <span className="text-white/70">Humidity</span>
+        {connectionStatus === 'connected' ? (
+          !showAlternate ? (
+            <div className="flex flex-col h-full">
+              {/* Main Temperature */}
+              <h1 className="text-6xl font-light mb-2">{weatherData.temperature}°F</h1>
+              
+              {/* Weather Description and Location */}
+              <h2 className="text-2xl font-light text-white/90 capitalize mb-1">
+                {weatherData.description}
+              </h2>
+              <p className="text-lg text-white/70 mb-8">{weatherData.location}</p>
+
+              {/* Weather Icon - Positioned to the right */}
+              <div className="absolute top-4 right-16">
+                <WeatherIcon weatherCondition={weatherData.description} />
+              </div>
+
+              {/* Main Weather Stats */}
+              <div className="grid grid-cols-3 gap-6 mb-8">
+                <div className="bg-white/5 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-blue-300">💧</span>
+                    <span className="text-white/70">Humidity</span>
+                  </div>
+                  <p className="text-2xl">{weatherData.humidity}%</p>
                 </div>
-                <p className="text-2xl">{weatherData.humidity}%</p>
-              </div>
-              <div className="bg-white/5 rounded-xl p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-blue-300">💨</span>
-                  <span className="text-white/70">Wind</span>
+                <div className="bg-white/5 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-blue-300">💨</span>
+                    <span className="text-white/70">Wind</span>
+                  </div>
+                  <p className="text-2xl">{weatherData.windSpeed} MPH</p>
                 </div>
-                <p className="text-2xl">{apiData.windSpeed} MPH</p>
-              </div>
-              <div className="bg-white/5 rounded-xl p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-blue-300">🌡️</span>
-                  <span className="text-white/70">Pressure</span>
+                <div className="bg-white/5 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-blue-300">🌡️</span>
+                    <span className="text-white/70">Pressure</span>
+                  </div>
+                  <p className="text-2xl">{weatherData.airPressure} hPa</p>
                 </div>
-                <p className="text-2xl">{apiData.airPressure} hPa</p>
+              </div>
+
+              {/* Additional Weather Info */}
+              <div className="space-y-3 text-base">
+                <div className="flex justify-between">
+                  <span className="text-white/70">Visibility</span>
+                  <span>{(weatherData.visibility / 1000).toFixed(1)} km</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-white/70">Cloud Cover</span>
+                  <span>{weatherData.clouds}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-white/70">Chance of Rain</span>
+                  <span>{Math.round(weatherData.pop * 100)}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-white/70">Sunrise</span>
+                  <span>{weatherData.sunrise}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-white/70">Sunset</span>
+                  <span>{weatherData.sunset}</span>
+                </div>
+              </div>
+
+              {/* Add last updated text at bottom of main display */}
+              <div className="mt-4 text-sm text-white/50 text-center">
+                Last updated {relativeTime}
               </div>
             </div>
-            <div className="space-y-3 text-base">
-              <div className="flex justify-between">
-                <span className="text-white/70">Visibility</span>
-                <span>{(apiData.visibility / 1000).toFixed(1)} km</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-white/70">Cloud Cover</span>
-                <span>{apiData.clouds}%</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-white/70">Chance of Rain</span>
-                <span>{Math.round(apiData.pop * 100)}%</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-white/70">Sunrise</span>
-                <span>{apiData.sunrise}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-white/70">Sunset</span>
-                <span>{apiData.sunset}</span>
-              </div>
-            </div>
-            <div className="mt-4 text-sm text-white/50 text-center">
-              Last updated {relativeTime}
-            </div>
-          </div>
+          ) : (
+            <FourDayForecast forecast={forecast.slice(0, daysToShow)} />
+          )
         ) : (
-          <FourDayForecast forecast={forecast.slice(0, daysToShow)} />
+          <div className="flex flex-col items-center justify-center h-[400px] text-white/70">
+            <p className="text-xl mb-2">Waiting for sensor connection...</p>
+            <p className="text-sm">Please check your device connection</p>
+          </div>
         )}
       </div>
+
+      {/* Connection status */}
       <div className="flex flex-col items-center gap-2">
         <div className="text-white/70 text-sm">
           <ConnectionStatus status={connectionStatus} />

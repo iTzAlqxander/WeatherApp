@@ -7,31 +7,27 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 9999;
+const SERIAL_PORT = process.env.SERIAL_PORT || '/dev/tty.usbserial-10';
+const BAUD_RATE = 115200;
 
-// Enable CORS with specific options
+let serialPort;
+let latestSensorData = null;
+
+// start WebSocket server
+const wss = new WebSocket.Server({ port: 8080 });
+console.log('[WebSocket] Server started on port 8080');
+
 app.use(cors({
-    origin: 'http://localhost:3000', // Allow your React app's origin
+    origin: 'http://localhost:3000',
     methods: ['GET', 'POST'],
     credentials: true
 }));
 
-// Add CORS headers to all responses
 app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', 'http://localhost:3000');
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
     next();
 });
-
-// Initialize WebSocket server
-const wss = new WebSocket.Server({ port: 8080 });
-console.log('[WebSocket] Server started on port 8080');
-
-// Serial port configuration
-const SERIAL_PORT = process.env.SERIAL_PORT || '/dev/tty.usbserial-10';
-const BAUD_RATE = 115200;
-
-let serialPort;
-let latestSensorData = null; // To store the latest sensor data
 
 function initializeSerialPort() {
     console.log(`[Serial] Attempting to connect to ${SERIAL_PORT}`);
@@ -39,7 +35,7 @@ function initializeSerialPort() {
     serialPort = new SerialPort({
         path: SERIAL_PORT,
         baudRate: BAUD_RATE,
-        autoOpen: false // Prevent automatic opening
+        autoOpen: false
     });
 
     const parser = serialPort.pipe(new ReadlineParser());
@@ -48,7 +44,6 @@ function initializeSerialPort() {
         if (err) {
             console.error('[Serial] Error opening port:', err.message);
             broadcastStatus('error', err.message);
-            // Attempt to reconnect after 5 seconds
             setTimeout(initializeSerialPort, 5000);
             return;
         }
@@ -63,14 +58,12 @@ function initializeSerialPort() {
     serialPort.on('error', (error) => {
         console.error('[Serial] Error:', error.message);
         broadcastStatus('error', error.message);
-        // Attempt to reconnect after 5 seconds
         setTimeout(initializeSerialPort, 5000);
     });
 
     serialPort.on('close', () => {
         console.log('[Serial] Connection closed');
         broadcastStatus('disconnected');
-        // Attempt to reconnect after 5 seconds
         setTimeout(initializeSerialPort, 5000);
     });
 
@@ -94,7 +87,6 @@ function initializeSerialPort() {
     });
 }
 
-// WebSocket broadcast functions
 function broadcastStatus(status, message = '') {
     const statusData = JSON.stringify({
         type: 'status',
@@ -117,11 +109,9 @@ function broadcastData(data) {
     });
 }
 
-// WebSocket connection handling
 wss.on('connection', (ws) => {
     console.log('[WebSocket] Client connected');
     
-    // Send initial status
     if (serialPort) {
         ws.send(JSON.stringify({
             type: 'status',
@@ -129,7 +119,6 @@ wss.on('connection', (ws) => {
         }));
     }
 
-    // Send the latest sensor data if available
     if (latestSensorData) {
         ws.send(JSON.stringify(latestSensorData));
     }
@@ -143,14 +132,12 @@ wss.on('connection', (ws) => {
     });
 });
 
-// Express routes
 app.get('/api/status', (req, res) => {
     res.json({
         serialConnected: serialPort?.isOpen || false
     });
 });
 
-// New API endpoint to get the latest weather data
 app.get('/api/weather', (req, res) => {
     if (latestSensorData) {
         res.json(latestSensorData);
@@ -159,15 +146,10 @@ app.get('/api/weather', (req, res) => {
     }
 });
 
-// Initialize serial port connection
-initializeSerialPort();
-
-// Start Express server
 app.listen(PORT, () => {
     console.log(`[Express] Server running on port ${PORT}`);
 });
 
-// Handle process termination
 process.on('SIGTERM', () => {
     console.log('[Server] SIGTERM received. Cleaning up...');
     if (serialPort?.isOpen) {
@@ -184,9 +166,11 @@ process.on('SIGINT', () => {
     process.exit(0);
 });
 
-// Add cleanup on process exit
 process.on('exit', () => {
     if (serialPort?.isOpen) {
         serialPort.close();
     }
 });
+
+// start the server
+initializeSerialPort();
